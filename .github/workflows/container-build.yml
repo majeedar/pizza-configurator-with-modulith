@@ -49,12 +49,24 @@ jobs:
           load: true
           tags: pizza-configurator-${{ matrix.image }}:scan
 
-      - name: Scan with Trivy
+      - name: Scan with Trivy (human-readable, gates the build)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: pizza-configurator-${{ matrix.image }}:scan
           severity: HIGH,CRITICAL
           exit-code: "1"
+
+      # Separate from the gating scan above: combining `exit-code` with
+      # `format: sarif` in the same trivy-action step is unreliable (exits 1
+      # with no findings table at all, even when the plain-table scan above
+      # is clean) — so SARIF/code-scanning upload is best-effort only and
+      # never blocks the build on its own.
+      - name: Generate SARIF for GitHub code scanning
+        if: always()
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: pizza-configurator-${{ matrix.image }}:scan
+          severity: HIGH,CRITICAL
           format: sarif
           output: trivy-${{ matrix.image }}.sarif
 
