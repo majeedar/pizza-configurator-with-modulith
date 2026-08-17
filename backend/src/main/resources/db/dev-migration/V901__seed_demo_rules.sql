@@ -18,4 +18,8 @@ VALUES
 
     (gen_random_uuid(), 'ANCHOVY_PINEAPPLE_EXCLUDED', 'EXCLUDES', 'GLOBAL', NULL,
      '{"ingredientA":"ANCHOVY","ingredientB":"PINEAPPLE"}',
-     'Anchovy and pineapple cannot be combined.', true, 0, now(), now());
+     'Anchovy and pineapple cannot be combined.', true, 0, now(), now()),
+
+    (gen_random_uuid(), 'MARGHERITA_NO_PINEAPPLE', 'OPTION_ALLOWED', 'PIZZA', 'MARGHERITA',
+     '{"ingredientCode":"PINEAPPLE","allowed":false}',
+     'Pineapple is not offered on a Margherita.', true, 0, now(), now());

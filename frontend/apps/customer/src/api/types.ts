@@ -21,6 +21,12 @@ export interface IngredientOption {
   code: string;
   name: string;
   type: string;
+  defaultUnit: string | null;
+}
+
+export interface ExtraConstraints {
+  maxQuantityByIngredientCode: Record<string, number>;
+  disallowedIngredientCodes: string[];
 }
 
 export interface SizeOption {

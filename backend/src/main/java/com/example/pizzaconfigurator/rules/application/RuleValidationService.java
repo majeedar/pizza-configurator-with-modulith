@@ -5,6 +5,8 @@ import com.example.pizzaconfigurator.catalog.api.ConfigurableOptions;
 import com.example.pizzaconfigurator.catalog.api.PizzaView;
 import com.example.pizzaconfigurator.rules.api.ConfigurationCandidate;
 import com.example.pizzaconfigurator.rules.api.ConfigurationSuggestion;
+import com.example.pizzaconfigurator.rules.api.ExtraConstraintsView;
+import com.example.pizzaconfigurator.rules.api.RuleConstraintsQuery;
 import com.example.pizzaconfigurator.rules.api.RuleValidation;
 import com.example.pizzaconfigurator.rules.api.ValidationResult;
 import com.example.pizzaconfigurator.rules.api.ValidationStatus;
@@ -12,14 +14,19 @@ import com.example.pizzaconfigurator.rules.api.Violation;
 import com.example.pizzaconfigurator.rules.domain.RuleDefinition;
 import com.example.pizzaconfigurator.rules.domain.RuleEvaluationContext;
 import com.example.pizzaconfigurator.rules.domain.RuleEvaluator;
+import com.example.pizzaconfigurator.rules.domain.RuleType;
 import com.example.pizzaconfigurator.rules.domain.evaluator.MaxQuantityEvaluator;
+import com.example.pizzaconfigurator.rules.domain.evaluator.OptionAllowedEvaluator;
 import com.example.pizzaconfigurator.rules.infrastructure.persistence.RuleRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -34,7 +41,7 @@ import tools.jackson.databind.json.JsonMapper;
  */
 @Service
 @Transactional(readOnly = true)
-class RuleValidationService implements RuleValidation {
+class RuleValidationService implements RuleValidation, RuleConstraintsQuery {
 
     private static final Logger log = LoggerFactory.getLogger(RuleValidationService.class);
 
@@ -98,6 +105,50 @@ class RuleValidationService implements RuleValidation {
         String ruleVersion = computeRuleVersion(applicableRules);
 
         return new ValidationResult(status, ruleVersion, violations, suggestions);
+    }
+
+    /**
+     * Agent.md: lets the customer-facing configurator hide/cap extras
+     * before submission (e.g. pineapple isn't offered on a Margherita, or
+     * the "+" stepper stops at a MAX_QUANTITY rule's limit) rather than
+     * only rejecting them after "Check availability & price". The most
+     * restrictive MAX_QUANTITY rule wins if more than one applies to the
+     * same ingredient; any OPTION_ALLOWED(allowed=false) rule disallows it
+     * outright. A malformed rule's parameters are skipped here the same
+     * way {@link #validate} skips them — never break every other pizza's
+     * page over one bad admin-entered rule.
+     */
+    @Override
+    public ExtraConstraintsView getExtraConstraints(String pizzaCode) {
+        Instant now = Instant.now(clock);
+        List<RuleDefinition> applicableRules = rules.findByActiveTrue().stream()
+            .filter(rule -> rule.appliesTo(pizzaCode))
+            .filter(rule -> rule.isCurrentlyValid(now))
+            .toList();
+
+        Map<String, Integer> maxQuantities = new LinkedHashMap<>();
+        Set<String> disallowed = new LinkedHashSet<>();
+
+        for (RuleDefinition rule : applicableRules) {
+            try {
+                if (rule.getRuleType() == RuleType.MAX_QUANTITY) {
+                    MaxQuantityEvaluator.Params params =
+                        jsonMapper.readValue(rule.getParametersJson(), MaxQuantityEvaluator.Params.class);
+                    maxQuantities.merge(params.ingredientCode(), params.max(), Math::min);
+                } else if (rule.getRuleType() == RuleType.OPTION_ALLOWED) {
+                    OptionAllowedEvaluator.Params params =
+                        jsonMapper.readValue(rule.getParametersJson(), OptionAllowedEvaluator.Params.class);
+                    if (!params.allowed()) {
+                        disallowed.add(params.ingredientCode());
+                    }
+                }
+            } catch (RuntimeException e) {
+                log.error("Rule '{}' ({}) has malformed parameters — skipping it for extra-constraints.",
+                    rule.getRuleCode(), rule.getRuleType(), e);
+            }
+        }
+
+        return new ExtraConstraintsView(maxQuantities, disallowed);
     }
 
     /**

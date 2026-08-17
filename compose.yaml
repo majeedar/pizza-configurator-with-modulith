@@ -27,6 +27,7 @@ services:
       DB_USER: ${DB_USER:-pizzaconfigurator}
       DB_PASSWORD: ${DB_PASSWORD:-pizzaconfigurator}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
     ports:
       - "8080:8080"
     volumes:

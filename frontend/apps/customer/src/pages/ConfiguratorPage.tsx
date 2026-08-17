@@ -18,10 +18,17 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
 import { useNavigate, useParams } from "react-router-dom";
-import { fetchPizzaOptions } from "../api/catalog";
+import { fetchExtraConstraints, fetchPizzaOptions } from "../api/catalog";
 import { createConfiguration, getConfiguration, priceConfiguration, updateConfiguration, validateConfiguration } from "../api/configuration";
 import { acceptRecommendation, fetchReviewStatus, rejectRecommendation } from "../api/reviews";
-import type { ConfigurableOptions, PriceQuote, ReviewRequestView, Violation } from "../api/types";
+import type {
+  ConfigurableOptions,
+  ConfigurationSessionView,
+  ExtraConstraints,
+  PriceQuote,
+  ReviewRequestView,
+  Violation,
+} from "../api/types";
 import { useAuth } from "../state/AuthContext";
 import { useBasket } from "../state/BasketContext";
 import { ApiError } from "../api/client";
@@ -35,6 +42,7 @@ export default function ConfiguratorPage() {
   const navigate = useNavigate();
 
   const [options, setOptions] = useState<ConfigurableOptions | null>(null);
+  const [constraints, setConstraints] = useState<ExtraConstraints | null>(null);
   const [configurationId, setConfigurationId] = useState<string | null>(null);
   const [sizeCode, setSizeCode] = useState("");
   const [doughCode, setDoughCode] = useState("");
@@ -50,6 +58,11 @@ export default function ConfiguratorPage() {
   const [adding, setAdding] = useState(false);
   const [review, setReview] = useState<ReviewRequestView | null>(null);
   const [reviewResponding, setReviewResponding] = useState(false);
+  // Set only when a non-blank comment resolved automatically (agent.md
+  // §4.3/§13.3) — holds the AI-merged final selections (which can differ
+  // from what the customer manually picked) so the confirm screen shows
+  // exactly what will be added to the basket.
+  const [mergedSession, setMergedSession] = useState<ConfigurationSessionView | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -59,12 +72,23 @@ export default function ConfiguratorPage() {
       setSizeCode(loaded.sizes[0]?.code ?? "");
       setDoughCode(loaded.doughs[0]?.code ?? "");
     });
+    fetchExtraConstraints(pizzaId).then(setConstraints);
   }, [pizzaId]);
 
   const removableBaseIngredients = useMemo(
     () => options?.baseIngredients.filter((item) => item.removable) ?? [],
     [options]
   );
+
+  const visibleExtras = useMemo(() => {
+    if (!options) return [];
+    const disallowed = new Set(constraints?.disallowedIngredientCodes ?? []);
+    return options.availableExtras.filter((extra) => !disallowed.has(extra.code));
+  }, [options, constraints]);
+
+  function maxQuantityOf(code: string): number | null {
+    return constraints?.maxQuantityByIngredientCode[code] ?? null;
+  }
 
   function toggleRemoved(code: string) {
     setRemoved((prev) => {
@@ -79,7 +103,9 @@ export default function ConfiguratorPage() {
   function changeExtraQuantity(code: string, delta: number) {
     setExtras((prev) => {
       const next = { ...prev };
-      const value = Math.max(0, (next[code] ?? 0) + delta);
+      const max = maxQuantityOf(code);
+      let value = Math.max(0, (next[code] ?? 0) + delta);
+      if (max !== null) value = Math.min(value, max);
       if (value === 0) delete next[code];
       else next[code] = value;
       return next;
@@ -92,6 +118,7 @@ export default function ConfiguratorPage() {
     setViolations([]);
     setQuote(null);
     setReview(null);
+    setMergedSession(null);
     stopPolling();
   }
 
@@ -138,6 +165,7 @@ export default function ConfiguratorPage() {
     if (session.validationStatus === "REVIEW_APPROVED") {
       const priced = await priceConfiguration(currentConfigurationId);
       setQuote(priced.quote);
+      setMergedSession(session);
     }
   }
 
@@ -162,13 +190,14 @@ export default function ConfiguratorPage() {
     setError(null);
     resetOutcome();
     try {
+      const commentTrimmed = comment.trim();
       const input = {
         pizzaId,
         sizeCode,
         doughCode,
         removedIngredients: Array.from(removed),
         extras: Object.entries(extras).map(([ingredientCode, quantity]) => ({ ingredientCode, quantity })),
-        comment: comment.trim() === "" ? null : comment,
+        comment: commentTrimmed === "" ? null : commentTrimmed,
       };
 
       const session = configurationId
@@ -183,6 +212,12 @@ export default function ConfiguratorPage() {
       if (validation.session.validationStatus === "VALID") {
         const priced = await priceConfiguration(session.configurationId);
         setQuote(priced.quote);
+        // A comment was present and got auto-resolved: the merged session
+        // (which the AI may have added to) is what's about to go in the
+        // basket, so show a confirm screen instead of silently accepting it.
+        if (commentTrimmed !== "") {
+          setMergedSession(validation.session);
+        }
       } else if (validation.session.validationStatus === "PENDING_REVIEW") {
         startPolling(session.configurationId);
       }
@@ -207,13 +242,87 @@ export default function ConfiguratorPage() {
     }
   }
 
+  function editInstead() {
+    if (mergedSession) {
+      setRemoved(new Set(mergedSession.removedIngredientCodes));
+      setExtras(Object.fromEntries(mergedSession.extras.map((e) => [e.ingredientCode, e.quantity])));
+      setSizeCode(mergedSession.sizeCode);
+      setDoughCode(mergedSession.doughCode);
+    }
+    setComment("");
+    resetOutcome();
+  }
+
   if (!options) {
     return <CircularProgress />;
   }
 
-  const readyForCheckout = (validationStatus === "VALID" || validationStatus === "REVIEW_APPROVED") && quote !== null;
   const extraNameByCode = new Map(options.availableExtras.map((e) => [e.code, e.name]));
   const ingredientNameByCode = new Map(options.baseIngredients.map((i) => [i.ingredientCode, i.ingredientName]));
+
+  if (mergedSession && quote) {
+    const removedNames = mergedSession.removedIngredientCodes.map((code) => ingredientNameByCode.get(code) ?? code);
+    const extraLines = mergedSession.extras.map(
+      (e) => `${extraNameByCode.get(e.ingredientCode) ?? e.ingredientCode} ×${e.quantity}`
+    );
+    const size = options.sizes.find((s) => s.code === mergedSession.sizeCode);
+    const dough = options.doughs.find((d) => d.code === mergedSession.doughCode);
+
+    return (
+      <Box sx={{ maxWidth: 640 }}>
+        <Typography variant="h4" gutterBottom>
+          {options.pizzaName}
+        </Typography>
+
+        <Alert severity="success" sx={{ mb: 3 }}>
+          We understood your request and priced it automatically — take a look before adding it to your basket.
+        </Alert>
+
+        <Stack spacing={3}>
+          <Box>
+            <Typography variant="subtitle1" gutterBottom>
+              Your pizza
+            </Typography>
+            <Typography variant="body2">Size: {size?.displayName ?? mergedSession.sizeCode}</Typography>
+            <Typography variant="body2">Dough: {dough?.displayName ?? mergedSession.doughCode}</Typography>
+            {removedNames.length > 0 && <Typography variant="body2">Without: {removedNames.join(", ")}</Typography>}
+            {extraLines.length > 0 && <Typography variant="body2">Extras: {extraLines.join(", ")}</Typography>}
+            {removedNames.length === 0 && extraLines.length === 0 && (
+              <Typography variant="body2" color="text.secondary">
+                No changes to the base recipe.
+              </Typography>
+            )}
+          </Box>
+
+          <Box>
+            <Typography variant="subtitle1">Price breakdown</Typography>
+            <Stack spacing={0.5}>
+              <Typography variant="body2">Base: {quote.base.toFixed(2)} €</Typography>
+              <Typography variant="body2">Size: {quote.size.toFixed(2)} €</Typography>
+              <Typography variant="body2">Dough: {quote.dough.toFixed(2)} €</Typography>
+              <Typography variant="body2">Extras: {quote.extras.toFixed(2)} €</Typography>
+              <Typography variant="h6">
+                Total: {quote.total.toFixed(2)} {quote.currency}
+              </Typography>
+            </Stack>
+          </Box>
+
+          {error && <Alert severity="error">{error}</Alert>}
+
+          <Stack direction="row" spacing={2}>
+            <Button variant="outlined" onClick={editInstead}>
+              Edit my choices instead
+            </Button>
+            <Button variant="contained" size="large" disabled={adding} onClick={handleAddToBasket} sx={{ flexGrow: 1 }}>
+              {adding ? "Adding…" : "Add to Basket"}
+            </Button>
+          </Stack>
+        </Stack>
+      </Box>
+    );
+  }
+
+  const readyForCheckout = (validationStatus === "VALID" || validationStatus === "REVIEW_APPROVED") && quote !== null;
 
   return (
     <Box sx={{ maxWidth: 640 }}>
@@ -255,24 +364,32 @@ export default function ConfiguratorPage() {
             Extras
           </Typography>
           <Stack spacing={1}>
-            {options.availableExtras.map((extra) => (
-              <Stack key={extra.code} direction="row" spacing={2} sx={{ alignItems: "center" }}>
-                <Typography sx={{ flexGrow: 1 }}>{extra.name}</Typography>
-                <IconButton
-                  size="small"
-                  onClick={() => changeExtraQuantity(extra.code, -1)}
-                  disabled={!extras[extra.code]}
-                >
-                  <RemoveIcon fontSize="small" />
-                </IconButton>
-                <Typography sx={{ width: 24, textAlign: "center" }}>
-                  {extras[extra.code] ?? 0}
-                </Typography>
-                <IconButton size="small" onClick={() => changeExtraQuantity(extra.code, 1)}>
-                  <AddIcon fontSize="small" />
-                </IconButton>
-              </Stack>
-            ))}
+            {visibleExtras.map((extra) => {
+              const max = maxQuantityOf(extra.code);
+              const quantity = extras[extra.code] ?? 0;
+              const unitLabel = extra.defaultUnit ? ` (${extra.defaultUnit}${max !== null ? `, max ${max}` : ""})` : "";
+              return (
+                <Stack key={extra.code} direction="row" spacing={2} sx={{ alignItems: "center" }}>
+                  <Typography sx={{ flexGrow: 1 }}>
+                    {extra.name}
+                    <Typography component="span" variant="body2" color="text.secondary">
+                      {unitLabel}
+                    </Typography>
+                  </Typography>
+                  <IconButton size="small" onClick={() => changeExtraQuantity(extra.code, -1)} disabled={!quantity}>
+                    <RemoveIcon fontSize="small" />
+                  </IconButton>
+                  <Typography sx={{ width: 24, textAlign: "center" }}>{quantity}</Typography>
+                  <IconButton
+                    size="small"
+                    onClick={() => changeExtraQuantity(extra.code, 1)}
+                    disabled={max !== null && quantity >= max}
+                  >
+                    <AddIcon fontSize="small" />
+                  </IconButton>
+                </Stack>
+              );
+            })}
           </Stack>
         </Box>
 

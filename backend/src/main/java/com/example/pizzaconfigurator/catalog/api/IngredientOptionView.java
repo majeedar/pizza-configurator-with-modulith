@@ -5,6 +5,7 @@ import com.example.pizzaconfigurator.catalog.domain.IngredientType;
 public record IngredientOptionView(
     String code,
     String name,
-    IngredientType type
+    IngredientType type,
+    String defaultUnit
 ) {
 }

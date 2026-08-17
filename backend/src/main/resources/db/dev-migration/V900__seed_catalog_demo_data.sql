@@ -12,15 +12,15 @@ INSERT INTO catalog.dough (dough_id, code, display_name, price_modifier, active,
     (gen_random_uuid(), 'GLUTEN_FREE',  'Gluten-Free',  1.50, true, now(), now());
 
 INSERT INTO catalog.ingredient (ingredient_id, code, name, type, active, default_unit, created_at, updated_at) VALUES
-    (gen_random_uuid(), 'TOMATO_SAUCE', 'Tomato Sauce', 'SAUCE',     true, 'portion', now(), now()),
-    (gen_random_uuid(), 'MOZZARELLA',   'Mozzarella',   'CHEESE',    true, 'portion', now(), now()),
-    (gen_random_uuid(), 'BASIL',        'Basil',        'VEGETABLE', true, 'portion', now(), now()),
-    (gen_random_uuid(), 'HAM',          'Ham',          'MEAT',      true, 'portion', now(), now()),
-    (gen_random_uuid(), 'PINEAPPLE',    'Pineapple',    'OTHER',     true, 'portion', now(), now()),
-    (gen_random_uuid(), 'OLIVES',       'Olives',       'VEGETABLE', true, 'portion', now(), now()),
-    (gen_random_uuid(), 'CHEESE',       'Extra Cheese', 'CHEESE',    true, 'portion', now(), now()),
-    (gen_random_uuid(), 'ONION',        'Onion',        'VEGETABLE', true, 'portion', now(), now()),
-    (gen_random_uuid(), 'ANCHOVY',      'Anchovy',      'OTHER',     true, 'portion', now(), now());
+    (gen_random_uuid(), 'TOMATO_SAUCE', 'Tomato Sauce', 'SAUCE',     true, 'portion (100g)', now(), now()),
+    (gen_random_uuid(), 'MOZZARELLA',   'Mozzarella',   'CHEESE',    true, 'portion (100g)', now(), now()),
+    (gen_random_uuid(), 'BASIL',        'Basil',        'VEGETABLE', true, 'portion (100g)', now(), now()),
+    (gen_random_uuid(), 'HAM',          'Ham',          'MEAT',      true, 'portion (100g)', now(), now()),
+    (gen_random_uuid(), 'PINEAPPLE',    'Pineapple',    'OTHER',     true, 'piece',          now(), now()),
+    (gen_random_uuid(), 'OLIVES',       'Olives',       'VEGETABLE', true, 'piece',          now(), now()),
+    (gen_random_uuid(), 'CHEESE',       'Extra Cheese', 'CHEESE',    true, 'portion (100g)', now(), now()),
+    (gen_random_uuid(), 'ONION',        'Onion',        'VEGETABLE', true, 'portion (100g)', now(), now()),
+    (gen_random_uuid(), 'ANCHOVY',      'Anchovy',      'OTHER',     true, 'piece',          now(), now());
 
 INSERT INTO catalog.pizza (pizza_id, code, name, description, base_price, active, version, created_at, updated_at) VALUES
     (gen_random_uuid(), 'MARGHERITA', 'Margherita', 'Tomato, mozzarella, basil',           8.50, true, 0, now(), now()),

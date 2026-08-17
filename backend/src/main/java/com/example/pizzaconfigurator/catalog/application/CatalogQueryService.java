@@ -65,7 +65,7 @@ class CatalogQueryService implements CatalogQuery {
         List<RecipeItemView> recipe = recipe(pizza);
 
         List<IngredientOptionView> extras = ingredients.findByActiveTrue().stream()
-            .map(i -> new IngredientOptionView(i.getCode(), i.getName(), i.getType()))
+            .map(i -> new IngredientOptionView(i.getCode(), i.getName(), i.getType(), i.getDefaultUnit()))
             .toList();
 
         List<SizeOptionView> sizeOptions = sizes.findByActiveTrue().stream()
