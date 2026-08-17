@@ -85,7 +85,7 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ steps.repo.outputs.value }}-${{ matrix.image }}:${{ steps.tag.outputs.value }}
 
       - name: Scan with Trivy before publishing
-        uses: aquasecurity/trivy-action@0.29.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ env.REGISTRY }}/${{ steps.repo.outputs.value }}-${{ matrix.image }}:${{ steps.tag.outputs.value }}
           severity: HIGH,CRITICAL

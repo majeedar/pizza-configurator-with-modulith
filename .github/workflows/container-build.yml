@@ -50,7 +50,7 @@ jobs:
           tags: pizza-configurator-${{ matrix.image }}:scan
 
       - name: Scan with Trivy
-        uses: aquasecurity/trivy-action@0.29.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: pizza-configurator-${{ matrix.image }}:scan
           severity: HIGH,CRITICAL
