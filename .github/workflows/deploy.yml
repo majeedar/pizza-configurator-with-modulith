@@ -6,11 +6,14 @@ name: deploy
 # alone — the VM is always told an explicit immutable IMAGE_TAG.
 #
 # Uses compose.shared-vm.yaml, not compose.prod.yaml: the actual target VM
-# already hosts another site on ports 80/443, so this deployment publishes
+# already hosts other sites on ports 80/443, so this deployment publishes
 # backend/customer-web/staff-web directly on alternate host ports (8080/
-# 8081/8082) with no nginx/TLS/domain layer, rather than agent.md §27's
-# original dedicated-VM-with-domain design (compose.prod.yaml, kept for if a
-# dedicated VM or domain becomes available later).
+# 8081/8082), rather than agent.md §27's original dedicated-VM-with-domain
+# design (compose.prod.yaml, kept for if a dedicated VM or domain becomes
+# available later). The VM's existing host nginx (outside this repo) adds a
+# free sslip.io HTTPS vhost in front of customer-web, proxying /api/ to the
+# backend on the same origin — see the VM's /etc/nginx/sites-available/pizza.
+# staff-web stays on plain http://<host>:8082 (internal/staff use only).
 #
 # Rollback (agent.md §27): re-run this workflow via workflow_dispatch with
 # `image_tag` set to a previous commit's short SHA — it redeploys that
@@ -71,6 +74,19 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
+      - id: api_base_url
+        run: |
+          if [ "${{ matrix.image }}" = "customer-web" ]; then
+            # Served over HTTPS at pizza.<host>.sslip.io via the VM's host
+            # nginx, which reverse-proxies /api/ to the backend on the same
+            # origin — an empty (relative) base URL means fetch() calls stay
+            # same-origin, avoiding mixed-content blocking and needing no
+            # CORS config at all. See infrastructure/nginx notes / VM setup.
+            echo "value=" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=http://${{ secrets.HETZNER_HOST }}:8080" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build image
         uses: docker/build-push-action@v6
         with:
@@ -78,10 +94,9 @@ jobs:
           push: false
           load: true
           # The two frontend apps bake their API base URL in at build time
-          # (Vite convention) — pointed at the backend's alternate host port
-          # on the same VM, since there's no domain/nginx routing here.
+          # (Vite convention).
           build-args: |
-            VITE_API_BASE_URL=http://${{ secrets.HETZNER_HOST }}:8080
+            VITE_API_BASE_URL=${{ steps.api_base_url.outputs.value }}
           tags: ${{ env.REGISTRY }}/${{ steps.repo.outputs.value }}-${{ matrix.image }}:${{ steps.tag.outputs.value }}
 
       - name: Scan with Trivy before publishing
@@ -104,7 +119,7 @@ jobs:
           context: ${{ matrix.context }}
           push: true
           build-args: |
-            VITE_API_BASE_URL=http://${{ secrets.HETZNER_HOST }}:8080
+            VITE_API_BASE_URL=${{ steps.api_base_url.outputs.value }}
           tags: |
             ${{ env.REGISTRY }}/${{ steps.repo.outputs.value }}-${{ matrix.image }}:${{ steps.tag.outputs.value }}
             ${{ env.REGISTRY }}/${{ steps.repo.outputs.value }}-${{ matrix.image }}:latest
