@@ -3,6 +3,7 @@ target/
 *.class
 *.jar
 !.mvn/wrapper/maven-wrapper.jar
+!mobile/**/gradle/wrapper/gradle-wrapper.jar
 
 # Node / frontend
 node_modules/
