@@ -10,10 +10,10 @@ name: deploy
 # backend/customer-web/staff-web directly on alternate host ports (8080/
 # 8081/8082), rather than agent.md §27's original dedicated-VM-with-domain
 # design (compose.prod.yaml, kept for if a dedicated VM or domain becomes
-# available later). The VM's existing host nginx (outside this repo) adds a
-# free sslip.io HTTPS vhost in front of customer-web, proxying /api/ to the
-# backend on the same origin — see the VM's /etc/nginx/sites-available/pizza.
-# staff-web stays on plain http://<host>:8082 (internal/staff use only).
+# available later). The VM's existing host nginx (outside this repo) adds
+# free sslip.io HTTPS vhosts in front of customer-web and staff-web, each
+# proxying /api/ to the backend on the same origin — see the VM's
+# /etc/nginx/sites-available/{pizza,pizza-staff}.
 #
 # Rollback (agent.md §27): re-run this workflow via workflow_dispatch with
 # `image_tag` set to a previous commit's short SHA — it redeploys that
@@ -76,12 +76,12 @@ jobs:
 
       - id: api_base_url
         run: |
-          if [ "${{ matrix.image }}" = "customer-web" ]; then
-            # Served over HTTPS at pizza.<host>.sslip.io via the VM's host
-            # nginx, which reverse-proxies /api/ to the backend on the same
-            # origin — an empty (relative) base URL means fetch() calls stay
-            # same-origin, avoiding mixed-content blocking and needing no
-            # CORS config at all. See infrastructure/nginx notes / VM setup.
+          if [ "${{ matrix.image }}" = "customer-web" ] || [ "${{ matrix.image }}" = "staff-web" ]; then
+            # Served over HTTPS at pizza.<host>.sslip.io / pizza-staff.<host>
+            # .sslip.io via the VM's host nginx, which reverse-proxies /api/
+            # to the backend on the same origin — an empty (relative) base
+            # URL means fetch() calls stay same-origin, avoiding
+            # mixed-content blocking and needing no CORS config at all.
             echo "value=" >> "$GITHUB_OUTPUT"
           else
             echo "value=http://${{ secrets.HETZNER_HOST }}:8080" >> "$GITHUB_OUTPUT"
