@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Pizza Configurator</string>
+    <string name="order_notification_channel_id">order_updates</string>
+    <string name="order_notification_channel_name">Order updates</string>
+</resources>

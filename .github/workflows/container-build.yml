@@ -1,0 +1,66 @@
+name: container-build
+
+# Fast-feedback gate on every push/PR: build every production image and scan
+# it for known vulnerabilities (Trivy, HIGH/CRITICAL fails the build). Does
+# NOT push anywhere — publishing to GHCR only happens from deploy.yml, on an
+# actual release. This is what caught real HIGH-severity CVEs during Phase
+# 13's security review (a stale Netty/httpcore5/postgresql-driver version
+# via Spring Boot's parent BOM, and Canonical's Pebble binary bundled into
+# the Ubuntu-based eclipse-temurin:21-jre tag) — see backend/pom.xml's
+# dependencyManagement overrides and backend/Dockerfile's switch to the
+# -alpine base for exactly what each fix was.
+
+on:
+  push:
+    paths:
+      - "backend/**"
+      - "frontend/apps/customer/**"
+      - "frontend/apps/staff/**"
+      - ".github/workflows/container-build.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - "frontend/apps/customer/**"
+      - "frontend/apps/staff/**"
+      - ".github/workflows/container-build.yml"
+
+jobs:
+  build-and-scan:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - image: backend
+            context: backend
+          - image: customer-web
+            context: frontend/apps/customer
+          - image: staff-web
+            context: frontend/apps/staff
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: false
+          load: true
+          tags: pizza-configurator-${{ matrix.image }}:scan
+
+      - name: Scan with Trivy
+        uses: aquasecurity/trivy-action@0.29.0
+        with:
+          image-ref: pizza-configurator-${{ matrix.image }}:scan
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          format: sarif
+          output: trivy-${{ matrix.image }}.sarif
+
+      - name: Upload Trivy results to GitHub code scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-${{ matrix.image }}.sarif
+          category: trivy-${{ matrix.image }}

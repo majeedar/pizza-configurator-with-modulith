@@ -1,0 +1,20 @@
+logging:
+  level:
+    com.example.pizzaconfigurator: DEBUG
+
+spring:
+  jpa:
+    show-sql: true
+  flyway:
+    locations: classpath:db/migration,classpath:db/dev-migration
+    # Dev seed data (db/dev-migration, V9xx) is intentionally numbered above
+    # any real schema migration. Every time a new V0xx schema migration is
+    # added, a local DB that already ran the V9xx seed once would otherwise
+    # fail Flyway's out-of-order check. Safe only because this is the local
+    # profile — never enable out-of-order against a real database.
+    out-of-order: true
+
+management:
+  endpoint:
+    health:
+      show-details: always

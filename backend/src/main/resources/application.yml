@@ -1,0 +1,107 @@
+spring:
+  application:
+    name: pizza-configurator
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:pizzaconfigurator}
+    username: ${DB_USER:pizzaconfigurator}
+    password: ${DB_PASSWORD:pizzaconfigurator}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  mail:
+    # Left blank by default — GmailSmtpNotificationProvider treats a blank
+    # username as "not configured" and stubs the send (agent.md §27, local
+    # default) rather than attempting a real SMTP connection.
+    host: smtp.gmail.com
+    port: 587
+    username: ${GMAIL_SMTP_USERNAME:}
+    password: ${GMAIL_SMTP_APP_PASSWORD:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+  # Honors X-Forwarded-* from the nginx reverse proxy in front of the Hetzner
+  # deployment (agent.md §27) — harmless locally where no such headers exist.
+  forward-headers-strategy: native
+  tomcat:
+    max-http-form-post-size: 1MB
+  max-http-request-header-size: 16KB
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001}
+  jwt:
+    # Dev-only fallback so local/test runs work without setting the env var.
+    # Production MUST override JWT_SIGNING_SECRET (agent.md §14.4).
+    secret: ${JWT_SIGNING_SECRET:dev-only-insecure-secret-change-me-0123456789abcdef}
+    issuer: ${JWT_ISSUER:pizza-configurator}
+    audience: ${JWT_AUDIENCE:pizza-configurator-clients}
+    customer-token-ttl-minutes: 60
+    staff-token-ttl-minutes: 480
+  notification:
+    firebase:
+      # Left blank by default — FcmPushNotificationProvider treats a blank
+      # project id/credential as "not configured" and stubs the send
+      # (agent.md §27, local default) rather than initializing the Firebase
+      # Admin SDK.
+      project-id: ${FIREBASE_PROJECT_ID:}
+      service-account-json: ${FIREBASE_SERVICE_ACCOUNT_JSON:}
+  ai:
+    # Left blank by default — DeepseekClient/OpenAiClient treat a blank
+    # api-key as "not configured" and never attempt the HTTP call, going
+    # straight to the next provider / MANUAL_REVIEW_REQUIRED (agent.md §27,
+    # local default). base-url is overridden by tests to point at WireMock.
+    deepseek:
+      base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+      api-key: ${DEEPSEEK_API_KEY:}
+      model: ${DEEPSEEK_MODEL:deepseek-chat}
+      timeout-ms: ${DEEPSEEK_TIMEOUT_MS:8000}
+    openai:
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+      api-key: ${OPENAI_API_KEY:}
+      model: ${OPENAI_MODEL:gpt-4o-mini}
+      timeout-ms: ${OPENAI_TIMEOUT_MS:8000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+  # Tracing is wired (Micrometer Tracing + OTLP exporter, agent.md §27/§28)
+  # but inert by default: probability 0 means no span is ever created, so
+  # nothing is exported regardless of whether OTEL_EXPORTER_OTLP_ENDPOINT
+  # points anywhere real — the same "present but stubbed unless configured"
+  # pattern as the AI/notification providers, not a profile-conditional bean.
+  tracing:
+    sampling:
+      probability: ${OTEL_TRACES_SAMPLER_PROBABILITY:0}
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+  metrics:
+    distribution:
+      # Histogram buckets (not just averages) for HTTP request latency, so
+      # Prometheus can compute the agent.md §28 "<500ms p95" target with
+      # histogram_quantile rather than only ever seeing a mean.
+      percentiles-histogram:
+        http.server.requests: true
+  health:
+    # spring-boot-starter-mail's default health indicator actively opens an
+    # SMTP connection to smtp.gmail.com — the whole point of stubbing
+    # GmailSmtpNotificationProvider when GMAIL_SMTP_USERNAME is unset
+    # (agent.md §27) is to never attempt that connection, so this indicator
+    # would otherwise mark the entire app DOWN in local/dev by default.
+    mail:
+      enabled: false

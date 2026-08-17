@@ -1,0 +1,82 @@
+# Deployment topology for a Hetzner VM that already hosts another site on
+# ports 80/443 (agent.md §27's dedicated-VM assumption doesn't hold here —
+# see compose.prod.yaml for that original design, kept for when a dedicated
+# VM or a domain becomes available). No nginx, no TLS, no domain: each
+# service is published directly on its own alternate host port, so this
+# never touches the existing site's ports/nginx at all.
+#
+# Usage on the VM (what deploy.yml's SSH step runs):
+#   cd /opt/pizza-configurator && git pull
+#   docker compose -f compose.shared-vm.yaml pull
+#   docker compose -f compose.shared-vm.yaml up -d
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # No published host port — only the backend reaches it.
+
+  backend:
+    image: ${GHCR_IMAGE_BACKEND}:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: production
+      SERVER_PORT: 8080
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
+      JWT_SIGNING_SECRET: ${JWT_SIGNING_SECRET}
+      JWT_ISSUER: ${JWT_ISSUER}
+      JWT_AUDIENCE: ${JWT_AUDIENCE}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      NOTIFICATION_PROVIDER: ${NOTIFICATION_PROVIDER:-gmail-smtp}
+      GMAIL_SMTP_USERNAME: ${GMAIL_SMTP_USERNAME:-}
+      GMAIL_SMTP_APP_PASSWORD: ${GMAIL_SMTP_APP_PASSWORD:-}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON:-}
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  customer-web:
+    image: ${GHCR_IMAGE_CUSTOMER_WEB}:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    depends_on:
+      - backend
+
+  staff-web:
+    image: ${GHCR_IMAGE_STAFF_WEB}:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "8082:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres-data:

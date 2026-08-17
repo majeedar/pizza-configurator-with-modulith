@@ -1,0 +1,94 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-pizzaconfigurator}
+      POSTGRES_USER: ${DB_USER:-pizzaconfigurator}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-pizzaconfigurator}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-pizzaconfigurator}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      SERVER_PORT: 8080
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-pizzaconfigurator}
+      DB_USER: ${DB_USER:-pizzaconfigurator}
+      DB_PASSWORD: ${DB_PASSWORD:-pizzaconfigurator}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  customer-web:
+    build:
+      context: ./frontend/apps/customer
+      args:
+        # Browser calls this directly — no reverse proxy in local Compose yet
+        # (that arrives with the Hetzner nginx setup, agent.md §7.3).
+        VITE_API_BASE_URL: http://localhost:8080
+    ports:
+      - "${CUSTOMER_WEB_PORT:-3000}:80"
+    depends_on:
+      - backend
+
+  staff-web:
+    build:
+      context: ./frontend/apps/staff
+      args:
+        VITE_API_BASE_URL: http://localhost:8080
+    ports:
+      - "${STAFF_WEB_PORT:-3001}:80"
+    depends_on:
+      - backend
+
+  # Optional `observability` profile (agent.md §25.2/§27) — not started by a
+  # plain `docker compose up`; run `docker compose --profile observability up`
+  # to also bring up metrics scraping/dashboards against the backend's
+  # /actuator/prometheus endpoint.
+  prometheus:
+    image: prom/prometheus:v3.0.1
+    profiles: ["observability"]
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - backend
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    profiles: ["observability"]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infrastructure/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3002:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  postgres-data:

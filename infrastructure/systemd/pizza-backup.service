@@ -1,0 +1,12 @@
+[Unit]
+Description=Pizza Configurator Postgres backup
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/pizza-configurator
+EnvironmentFile=/opt/pizza-configurator/.env
+Environment=COMPOSE_FILE=compose.prod.yaml
+Environment=BACKUP_DIR=/opt/pizza-configurator/backups
+ExecStart=/opt/pizza-configurator/infrastructure/scripts/backup-postgres.sh

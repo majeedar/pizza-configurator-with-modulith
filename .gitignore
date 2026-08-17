@@ -1,0 +1,45 @@
+# Java / Maven
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# Node / frontend
+node_modules/
+dist/
+build/
+.vite/
+
+# Android
+*.apk
+*.aab
+.gradle/
+.kotlin/
+local.properties
+mobile/**/build/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.claude/settings.local.json
+
+# Env / secrets
+.env
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# E2E (Playwright)
+e2e/playwright-report/
+e2e/test-results/
+e2e/blob-report/
+
+# Infrastructure — generated at deploy/backup time, never committed
+infrastructure/nginx/certbot/
+backups/

@@ -1,0 +1,22 @@
+# Hetzner VM deployment profile (agent.md §27). Activated via
+# SPRING_PROFILES_ACTIVE=production in the production compose.yaml
+# (infrastructure/, Phase 13). Never used for local/dev or CI — those stay on
+# the default profile (see application.yml) or `local` (application-local.yml).
+
+management:
+  endpoint:
+    health:
+      # Never leak internal health details (dependency names, disk paths) to
+      # an unauthenticated caller on a public VM — the local/dev override
+      # (application-local.yml) still uses `always` for convenience.
+      show-details: never
+
+logging:
+  # Structured JSON logs to stdout (Spring Boot's built-in structured logging,
+  # no extra dependency) — agent.md §27 "centralized logs": `docker compose
+  # logs` and the Loki/Promtail pair in the optional `observability` Compose
+  # profile (infrastructure/) can both consume this directly instead of
+  # parsing a free-text log line.
+  structured:
+    format:
+      console: ecs
