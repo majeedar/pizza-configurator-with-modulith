@@ -23,7 +23,7 @@ mobile/**/build/
 .idea/
 *.iml
 .vscode/
-.claude/settings.local.json
+.claude/
 
 # Env / secrets
 .env
@@ -44,3 +44,7 @@ e2e/blob-report/
 # Infrastructure — generated at deploy/backup time, never committed
 infrastructure/nginx/certbot/
 backups/
+
+# Admin-uploaded pizza photos (PizzaImageStorage's local-disk default,
+# app.storage.pizza-images-dir) — generated at runtime, never committed.
+backend/data/

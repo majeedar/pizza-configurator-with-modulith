@@ -12,6 +12,7 @@ import java.util.UUID;
  */
 public record ConfigurableOptions(
     UUID pizzaId,
+    String pizzaName,
     List<RecipeItemView> baseIngredients,
     List<IngredientOptionView> availableExtras,
     List<SizeOptionView> sizes,

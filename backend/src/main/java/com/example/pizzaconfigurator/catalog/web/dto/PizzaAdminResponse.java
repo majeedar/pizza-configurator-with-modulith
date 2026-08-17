@@ -10,6 +10,7 @@ public record PizzaAdminResponse(
     String description,
     BigDecimal basePrice,
     boolean active,
+    String imageUrl,
     Long version
 ) {
 }

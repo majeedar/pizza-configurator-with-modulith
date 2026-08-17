@@ -54,7 +54,8 @@ class CatalogQueryService implements CatalogQuery {
     @Override
     public List<PizzaSummary> findActivePizzas() {
         return pizzas.findByActiveTrue().stream()
-            .map(p -> new PizzaSummary(p.getPizzaId(), p.getCode(), p.getName(), p.getDescription(), p.getBasePrice()))
+            .map(p -> new PizzaSummary(
+                p.getPizzaId(), p.getCode(), p.getName(), p.getDescription(), p.getBasePrice(), p.getImageUrl()))
             .toList();
     }
 
@@ -75,7 +76,7 @@ class CatalogQueryService implements CatalogQuery {
             .map(d -> new DoughOptionView(d.getCode(), d.getDisplayName(), d.getPriceModifier()))
             .toList();
 
-        return new ConfigurableOptions(pizzaId, recipe, extras, sizeOptions, doughOptions);
+        return new ConfigurableOptions(pizzaId, pizza.getName(), recipe, extras, sizeOptions, doughOptions);
     }
 
     private PizzaView toView(Pizza pizza) {
@@ -85,6 +86,7 @@ class CatalogQueryService implements CatalogQuery {
             pizza.getName(),
             pizza.getDescription(),
             pizza.getBasePrice(),
+            pizza.getImageUrl(),
             recipe(pizza)
         );
     }

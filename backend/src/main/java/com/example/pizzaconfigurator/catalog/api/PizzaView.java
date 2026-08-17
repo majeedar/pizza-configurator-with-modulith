@@ -10,6 +10,7 @@ public record PizzaView(
     String name,
     String description,
     BigDecimal basePrice,
+    String imageUrl,
     List<RecipeItemView> recipe
 ) {
 }

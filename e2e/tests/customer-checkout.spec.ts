@@ -6,7 +6,7 @@ import { CUSTOMER_WEB_URL } from "../playwright.config";
 test("guest can check out from the basket and see the order status page", async ({ page }) => {
   await page.goto(CUSTOMER_WEB_URL);
   await page.locator(".MuiCardActionArea-root", { hasText: "Margherita" }).click();
-  await expect(page.getByText("Configure your pizza")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Margherita" })).toBeVisible();
 
   await page.getByRole("button", { name: "Check availability & price" }).click();
   await expect(page.getByText(/^Total: \d+\.\d{2} \w+$/)).toBeVisible({ timeout: 15000 });

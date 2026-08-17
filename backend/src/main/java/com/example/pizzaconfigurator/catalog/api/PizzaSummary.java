@@ -8,6 +8,7 @@ public record PizzaSummary(
     String code,
     String name,
     String description,
-    BigDecimal basePrice
+    BigDecimal basePrice,
+    String imageUrl
 ) {
 }

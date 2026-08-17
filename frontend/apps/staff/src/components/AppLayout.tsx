@@ -6,6 +6,7 @@ export default function AppLayout() {
   const { isAuthenticated, displayName, role, logout } = useAuth();
   const location = useLocation();
   const onAdminRoute = location.pathname.startsWith("/admin");
+  const onReviewsRoute = location.pathname.startsWith("/reviews");
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
@@ -29,6 +30,12 @@ export default function AppLayout() {
                   {onAdminRoute ? "Production board" : "Admin Portal"}
                 </Button>
               )}
+              {/* Reachable by both KITCHEN and ADMIN, same as /api/v1/kitchen/reviews itself
+                  — always shown, unlike the admin/board toggle, since an admin landing on
+                  /admin/pizzas right after login shouldn't need two clicks to reach it. */}
+              <Button color="inherit" variant={onReviewsRoute ? "outlined" : "text"} component={Link} to="/reviews">
+                Reviews
+              </Button>
               <Chip label={role} color="secondary" size="small" />
               <Typography variant="body2">{displayName}</Typography>
               <Button color="inherit" onClick={logout}>

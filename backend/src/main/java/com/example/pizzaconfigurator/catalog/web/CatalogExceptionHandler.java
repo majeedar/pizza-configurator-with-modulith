@@ -2,6 +2,7 @@ package com.example.pizzaconfigurator.catalog.web;
 
 import com.example.pizzaconfigurator.catalog.api.PizzaNotFoundException;
 import com.example.pizzaconfigurator.catalog.application.CatalogAdminNotFoundException;
+import com.example.pizzaconfigurator.catalog.application.InvalidPizzaImageException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -22,6 +23,13 @@ class CatalogExceptionHandler {
     ProblemDetail handleAdminNotFound(CatalogAdminNotFoundException exception) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
         problem.setTitle("Catalog entity not found");
+        return problem;
+    }
+
+    @ExceptionHandler(InvalidPizzaImageException.class)
+    ProblemDetail handleInvalidImage(InvalidPizzaImageException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
+        problem.setTitle("Invalid image");
         return problem;
     }
 

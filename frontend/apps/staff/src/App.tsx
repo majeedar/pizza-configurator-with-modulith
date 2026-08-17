@@ -4,6 +4,7 @@ import RequireAuth from "./components/RequireAuth";
 import RequireRole from "./components/RequireRole";
 import LoginPage from "./pages/LoginPage";
 import ProductionBoardPage from "./pages/ProductionBoardPage";
+import ReviewQueuePage from "./pages/ReviewQueuePage";
 import AdminLayout from "./pages/admin/AdminLayout";
 import PizzasAdminPage from "./pages/admin/PizzasAdminPage";
 import PizzaRecipePage from "./pages/admin/PizzaRecipePage";
@@ -26,6 +27,14 @@ export default function App() {
           element={
             <RequireAuth>
               <ProductionBoardPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/reviews"
+          element={
+            <RequireAuth>
+              <ReviewQueuePage />
             </RequireAuth>
           }
         />

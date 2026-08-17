@@ -4,12 +4,13 @@ import {
   Card,
   CardActionArea,
   CardContent,
+  CardMedia,
   CircularProgress,
   Grid,
   Typography,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
-import { fetchPizzas } from "../api/catalog";
+import { fetchPizzas, resolveImageUrl } from "../api/catalog";
 import type { PizzaSummary } from "../api/types";
 
 export default function PizzaListPage() {
@@ -40,6 +41,14 @@ export default function PizzaListPage() {
           <Grid key={pizza.pizzaId} size={{ xs: 12, sm: 6, md: 4 }}>
             <Card>
               <CardActionArea onClick={() => navigate(`/configure/${pizza.pizzaId}`)}>
+                {resolveImageUrl(pizza.imageUrl) && (
+                  <CardMedia
+                    component="img"
+                    height="160"
+                    image={resolveImageUrl(pizza.imageUrl)!}
+                    alt={pizza.name}
+                  />
+                )}
                 <CardContent>
                   <Typography variant="h6">{pizza.name}</Typography>
                   <Typography variant="body2" color="text.secondary" gutterBottom>

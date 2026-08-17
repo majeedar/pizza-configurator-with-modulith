@@ -49,3 +49,30 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
 export function apiBaseUrl(): string {
   return BASE_URL;
 }
+
+// Separate from apiFetch: a multipart upload must let the browser set its
+// own Content-Type (with the multipart boundary) rather than the forced
+// application/json header apiFetch always sends.
+export async function uploadFile<T>(path: string, file: File, token?: string | null): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${BASE_URL}${path}`, { method: "POST", headers, body: formData });
+
+  if (!response.ok) {
+    let message = `Request failed with status ${response.status}`;
+    try {
+      const problem = (await response.json()) as ProblemDetail;
+      message = problem.detail ?? problem.title ?? message;
+    } catch {
+      // response body wasn't JSON — keep the default message
+    }
+    throw new ApiError(response.status, message);
+  }
+
+  return (await response.json()) as T;
+}

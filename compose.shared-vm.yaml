@@ -52,6 +52,8 @@ services:
       FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON:-}
     ports:
       - "8080:8080"
+    volumes:
+      - pizza-images:/app/data/pizza-images
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 10s
@@ -80,3 +82,4 @@ services:
 
 volumes:
   postgres-data:
+  pizza-images:

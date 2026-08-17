@@ -7,6 +7,7 @@ export interface PizzaSummary {
   name: string;
   description: string | null;
   basePrice: number;
+  imageUrl: string | null;
 }
 
 export interface RecipeItem {
@@ -36,6 +37,7 @@ export interface DoughOption {
 
 export interface ConfigurableOptions {
   pizzaId: string;
+  pizzaName: string;
   baseIngredients: RecipeItem[];
   availableExtras: IngredientOption[];
   sizes: SizeOption[];
@@ -172,6 +174,45 @@ export interface OrderView {
 export interface OrderCheckoutResponse {
   order: OrderView;
   accessToken: string | null;
+}
+
+export type ReviewRequestStatus =
+  | "OPEN"
+  | "ACCEPTED_BY_KITCHEN"
+  | "RECOMMENDED_BY_KITCHEN"
+  | "REJECTED_BY_KITCHEN"
+  | "RECOMMENDATION_ACCEPTED_BY_CUSTOMER"
+  | "RECOMMENDATION_REJECTED_BY_CUSTOMER";
+
+export interface ProposedExtra {
+  ingredientCode: string;
+  quantity: number;
+}
+
+export interface ProposedModification {
+  removedIngredientCodes: string[];
+  extras: ProposedExtra[];
+  sizeCode: string;
+  doughCode: string;
+}
+
+export interface ReviewRequestView {
+  reviewRequestId: string;
+  configurationId: string;
+  status: ReviewRequestStatus;
+  reason: string | null;
+  originalRequestJson: string;
+  proposedModificationJson: string | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  customerResponse: "ACCEPTED" | "REJECTED" | null;
+  customerRespondedAt: string | null;
+  createdAt: string;
+}
+
+export interface ReviewOutcome {
+  reviewRequest: ReviewRequestView;
+  session: ConfigurationSessionView;
 }
 
 export interface AppLinkView {

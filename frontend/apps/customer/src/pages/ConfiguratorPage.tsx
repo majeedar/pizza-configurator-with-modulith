@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Box,
@@ -19,11 +19,14 @@ import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
 import { useNavigate, useParams } from "react-router-dom";
 import { fetchPizzaOptions } from "../api/catalog";
-import { createConfiguration, priceConfiguration, updateConfiguration, validateConfiguration } from "../api/configuration";
-import type { ConfigurableOptions, PriceQuote, Violation } from "../api/types";
+import { createConfiguration, getConfiguration, priceConfiguration, updateConfiguration, validateConfiguration } from "../api/configuration";
+import { acceptRecommendation, fetchReviewStatus, rejectRecommendation } from "../api/reviews";
+import type { ConfigurableOptions, PriceQuote, ReviewRequestView, Violation } from "../api/types";
 import { useAuth } from "../state/AuthContext";
 import { useBasket } from "../state/BasketContext";
 import { ApiError } from "../api/client";
+
+const REVIEW_POLL_INTERVAL_MS = 4000;
 
 export default function ConfiguratorPage() {
   const { pizzaId } = useParams<{ pizzaId: string }>();
@@ -45,6 +48,9 @@ export default function ConfiguratorPage() {
   const [quote, setQuote] = useState<PriceQuote | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [review, setReview] = useState<ReviewRequestView | null>(null);
+  const [reviewResponding, setReviewResponding] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!pizzaId) return;
@@ -85,6 +91,69 @@ export default function ConfiguratorPage() {
     setValidationStatus(null);
     setViolations([]);
     setQuote(null);
+    setReview(null);
+    stopPolling();
+  }
+
+  function stopPolling() {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }
+
+  useEffect(() => () => stopPolling(), []);
+
+  function startPolling(currentConfigurationId: string) {
+    stopPolling();
+    pollRef.current = setInterval(async () => {
+      try {
+        const view = await fetchReviewStatus(currentConfigurationId);
+        setReview(view);
+        if (
+          view.status === "ACCEPTED_BY_KITCHEN" ||
+          view.status === "RECOMMENDATION_ACCEPTED_BY_CUSTOMER" ||
+          view.status === "REJECTED_BY_KITCHEN" ||
+          view.status === "RECOMMENDATION_REJECTED_BY_CUSTOMER"
+        ) {
+          stopPolling();
+          await refreshAfterReviewResolved(currentConfigurationId);
+        } else if (view.status === "RECOMMENDED_BY_KITCHEN") {
+          stopPolling();
+        }
+      } catch (err) {
+        // A 404 just means the review row hasn't been created yet (it's
+        // written in a separate transaction right after validate returns
+        // PENDING_REVIEW) — keep polling rather than surfacing an error.
+        if (!(err instanceof ApiError && err.status === 404)) {
+          stopPolling();
+        }
+      }
+    }, REVIEW_POLL_INTERVAL_MS);
+  }
+
+  async function refreshAfterReviewResolved(currentConfigurationId: string) {
+    const session = await getConfiguration(currentConfigurationId);
+    setValidationStatus(session.validationStatus);
+    if (session.validationStatus === "REVIEW_APPROVED") {
+      const priced = await priceConfiguration(currentConfigurationId);
+      setQuote(priced.quote);
+    }
+  }
+
+  async function respondToRecommendation(accept: boolean) {
+    if (!configurationId) return;
+    setReviewResponding(true);
+    setError(null);
+    try {
+      const outcome = accept ? await acceptRecommendation(configurationId) : await rejectRecommendation(configurationId);
+      setReview(outcome.reviewRequest);
+      await refreshAfterReviewResolved(configurationId);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not record your response — please try again");
+    } finally {
+      setReviewResponding(false);
+    }
   }
 
   async function checkAvailabilityAndPrice() {
@@ -114,6 +183,8 @@ export default function ConfiguratorPage() {
       if (validation.session.validationStatus === "VALID") {
         const priced = await priceConfiguration(session.configurationId);
         setQuote(priced.quote);
+      } else if (validation.session.validationStatus === "PENDING_REVIEW") {
+        startPolling(session.configurationId);
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong — please try again");
@@ -140,12 +211,14 @@ export default function ConfiguratorPage() {
     return <CircularProgress />;
   }
 
-  const readyForCheckout = validationStatus === "VALID" && quote !== null;
+  const readyForCheckout = (validationStatus === "VALID" || validationStatus === "REVIEW_APPROVED") && quote !== null;
+  const extraNameByCode = new Map(options.availableExtras.map((e) => [e.code, e.name]));
+  const ingredientNameByCode = new Map(options.baseIngredients.map((i) => [i.ingredientCode, i.ingredientName]));
 
   return (
     <Box sx={{ maxWidth: 640 }}>
       <Typography variant="h4" gutterBottom>
-        Configure your pizza
+        {options.pizzaName}
       </Typography>
 
       <Stack spacing={3}>
@@ -252,7 +325,7 @@ export default function ConfiguratorPage() {
             setComment(e.target.value);
             resetOutcome();
           }}
-          helperText="Comment-based requests aren't processed automatically yet — a team member will review them."
+          helperText="We'll try to price this automatically; unusual requests may need a quick check from our team first."
         />
 
         <Divider />
@@ -272,11 +345,47 @@ export default function ConfiguratorPage() {
           </Alert>
         )}
 
-        {validationStatus === "PENDING_REVIEW" && (
+        {validationStatus === "PENDING_REVIEW" && review?.status !== "RECOMMENDED_BY_KITCHEN" && (
+          <Alert severity="info" icon={<CircularProgress size={20} />}>
+            We couldn't price this automatically, so a team member is taking a quick look. This page will update
+            on its own once they've responded — no need to refresh.
+          </Alert>
+        )}
+
+        {review?.status === "RECOMMENDED_BY_KITCHEN" && review.proposedModificationJson && (
           <Alert severity="info">
-            Your comment has been noted. Comment-based requests aren't processed automatically yet, so this
-            configuration needs manual review before it can be priced — please remove the comment to continue now,
-            or check back later.
+            <Typography sx={{ fontWeight: 600 }}>Our kitchen suggests a slightly different pizza:</Typography>
+            <ProposedChangesSummary
+              proposedModificationJson={review.proposedModificationJson}
+              ingredientNameByCode={ingredientNameByCode}
+              extraNameByCode={extraNameByCode}
+              sizes={options.sizes}
+              doughs={options.doughs}
+            />
+            <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
+              <Button
+                variant="contained"
+                size="small"
+                disabled={reviewResponding}
+                onClick={() => respondToRecommendation(true)}
+              >
+                Accept
+              </Button>
+              <Button
+                variant="outlined"
+                size="small"
+                disabled={reviewResponding}
+                onClick={() => respondToRecommendation(false)}
+              >
+                Decline
+              </Button>
+            </Stack>
+          </Alert>
+        )}
+
+        {validationStatus === "REVIEW_REJECTED" && (
+          <Alert severity="warning">
+            Sorry, our kitchen couldn't accommodate this request. Please adjust your pizza and try again.
           </Alert>
         )}
 
@@ -303,5 +412,51 @@ export default function ConfiguratorPage() {
         </Button>
       </Stack>
     </Box>
+  );
+}
+
+interface ProposedChangesSummaryProps {
+  proposedModificationJson: string;
+  ingredientNameByCode: Map<string, string>;
+  extraNameByCode: Map<string, string>;
+  sizes: ConfigurableOptions["sizes"];
+  doughs: ConfigurableOptions["doughs"];
+}
+
+function ProposedChangesSummary({
+  proposedModificationJson,
+  ingredientNameByCode,
+  extraNameByCode,
+  sizes,
+  doughs,
+}: ProposedChangesSummaryProps) {
+  let patch: { removedIngredientCodes: string[]; extras: { ingredientCode: string; quantity: number }[]; sizeCode: string; doughCode: string };
+  try {
+    patch = JSON.parse(proposedModificationJson);
+  } catch {
+    return null;
+  }
+
+  const size = sizes.find((s) => s.code === patch.sizeCode);
+  const dough = doughs.find((d) => d.code === patch.doughCode);
+
+  return (
+    <Stack spacing={0.25} sx={{ mt: 1 }}>
+      <Typography variant="body2">Size: {size?.displayName ?? patch.sizeCode}</Typography>
+      <Typography variant="body2">Dough: {dough?.displayName ?? patch.doughCode}</Typography>
+      {patch.removedIngredientCodes.length > 0 && (
+        <Typography variant="body2">
+          Without: {patch.removedIngredientCodes.map((code) => ingredientNameByCode.get(code) ?? code).join(", ")}
+        </Typography>
+      )}
+      {patch.extras.length > 0 && (
+        <Typography variant="body2">
+          Extras:{" "}
+          {patch.extras
+            .map((e) => `${extraNameByCode.get(e.ingredientCode) ?? e.ingredientCode} ×${e.quantity}`)
+            .join(", ")}
+        </Typography>
+      )}
+    </Stack>
   );
 }

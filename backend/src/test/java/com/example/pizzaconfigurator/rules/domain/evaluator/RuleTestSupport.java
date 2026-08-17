@@ -30,7 +30,7 @@ final class RuleTestSupport {
 
     static RuleEvaluationContext context(String pizzaCode, RecipeItemView... baseIngredients) {
         ConfigurableOptions options = new ConfigurableOptions(
-            UUID.randomUUID(), List.of(baseIngredients), List.of(), List.of(), List.of());
+            UUID.randomUUID(), pizzaCode, List.of(baseIngredients), List.of(), List.of(), List.of());
         return new RuleEvaluationContext(pizzaCode, options);
     }
 

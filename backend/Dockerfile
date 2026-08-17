@@ -28,6 +28,10 @@ WORKDIR /app
 # via the Trivy scan wired into container-build.yml).
 RUN apk update && apk upgrade --no-cache && apk add --no-cache curl
 COPY --from=build /workspace/target/*.jar app.jar
+# Admin-uploaded pizza photos (PizzaImageStorage, app.storage.pizza-images-dir)
+# land under WORKDIR by default — pre-create and chown it since USER 10001
+# can't create directories directly under /app, which COPY leaves root-owned.
+RUN mkdir -p /app/data/pizza-images && chown -R 10001:10001 /app/data
 USER 10001
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=5 \

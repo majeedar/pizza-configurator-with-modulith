@@ -17,9 +17,12 @@ import com.example.pizzaconfigurator.catalog.web.dto.RecipeLineAdminResponse;
 import com.example.pizzaconfigurator.catalog.web.dto.SizeAdminRequest;
 import com.example.pizzaconfigurator.catalog.web.dto.SizeAdminResponse;
 import jakarta.validation.Valid;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,7 +31,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Admin CRUD for catalog resources (agent.md §7.10, §9.3) — requires
@@ -69,6 +74,16 @@ class CatalogAdminController {
         Pizza pizza = adminService.updatePizza(
             pizzaId, request.name(), request.description(), request.basePrice(), request.active());
         return toResponse(pizza);
+    }
+
+    @PostMapping(value = "/pizzas/{pizzaId}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    PizzaAdminResponse uploadPizzaImage(@PathVariable UUID pizzaId, @RequestParam("file") MultipartFile file) {
+        try {
+            Pizza pizza = adminService.updatePizzaImage(pizzaId, file.getContentType(), file.getBytes());
+            return toResponse(pizza);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     // --- Ingredients ---
@@ -168,7 +183,7 @@ class CatalogAdminController {
     private PizzaAdminResponse toResponse(Pizza pizza) {
         return new PizzaAdminResponse(
             pizza.getPizzaId(), pizza.getCode(), pizza.getName(), pizza.getDescription(),
-            pizza.getBasePrice(), pizza.isActive(), pizza.getVersion());
+            pizza.getBasePrice(), pizza.isActive(), pizza.getImageUrl(), pizza.getVersion());
     }
 
     private IngredientAdminResponse toResponse(Ingredient ingredient) {

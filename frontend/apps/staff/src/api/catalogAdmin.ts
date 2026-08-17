@@ -1,4 +1,4 @@
-import { apiFetch } from "./client";
+import { apiFetch, uploadFile } from "./client";
 import type {
   DoughAdmin,
   DoughAdminRequest,
@@ -26,6 +26,10 @@ export function createPizza(request: PizzaAdminRequest, token: string): Promise<
 
 export function updatePizza(pizzaId: string, request: PizzaAdminRequest, token: string): Promise<PizzaAdmin> {
   return apiFetch<PizzaAdmin>(`/api/v1/admin/pizzas/${pizzaId}`, { method: "PUT", body: request, token });
+}
+
+export function uploadPizzaImage(pizzaId: string, file: File, token: string): Promise<PizzaAdmin> {
+  return uploadFile<PizzaAdmin>(`/api/v1/admin/pizzas/${pizzaId}/image`, file, token);
 }
 
 export function listIngredients(token: string): Promise<IngredientAdmin[]> {

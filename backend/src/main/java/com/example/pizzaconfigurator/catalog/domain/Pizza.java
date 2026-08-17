@@ -28,6 +28,7 @@ public class Pizza {
     private String description;
     private BigDecimal basePrice;
     private boolean active;
+    private String imageUrl;
 
     @Version
     private Long version;
@@ -73,6 +74,10 @@ public class Pizza {
         return active;
     }
 
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
     public Long getVersion() {
         return version;
     }
@@ -82,5 +87,9 @@ public class Pizza {
         this.description = description;
         this.basePrice = basePrice;
         this.active = active;
+    }
+
+    public void updateImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 }

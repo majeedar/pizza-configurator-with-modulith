@@ -8,7 +8,7 @@ test("customer configures a Margherita and adds it to the basket", async ({ page
   await expect(page.getByText("Choose your pizza")).toBeVisible();
 
   await page.locator(".MuiCardActionArea-root", { hasText: "Margherita" }).click();
-  await expect(page.getByText("Configure your pizza")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Margherita" })).toBeVisible();
 
   await page.getByRole("button", { name: "Check availability & price" }).click();
   await expect(page.getByText(/^Total: \d+\.\d{2} \w+$/)).toBeVisible({ timeout: 15000 });

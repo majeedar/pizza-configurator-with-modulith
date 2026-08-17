@@ -11,6 +11,7 @@ import com.example.pizzaconfigurator.catalog.infrastructure.persistence.Ingredie
 import com.example.pizzaconfigurator.catalog.infrastructure.persistence.PizzaIngredientRepository;
 import com.example.pizzaconfigurator.catalog.infrastructure.persistence.PizzaRepository;
 import com.example.pizzaconfigurator.catalog.infrastructure.persistence.SizeRepository;
+import com.example.pizzaconfigurator.catalog.infrastructure.storage.PizzaImageStorage;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
@@ -32,19 +33,22 @@ public class CatalogAdminService {
     private final SizeRepository sizes;
     private final DoughRepository doughs;
     private final PizzaIngredientRepository recipeLines;
+    private final PizzaImageStorage imageStorage;
 
     CatalogAdminService(
         PizzaRepository pizzas,
         IngredientRepository ingredients,
         SizeRepository sizes,
         DoughRepository doughs,
-        PizzaIngredientRepository recipeLines
+        PizzaIngredientRepository recipeLines,
+        PizzaImageStorage imageStorage
     ) {
         this.pizzas = pizzas;
         this.ingredients = ingredients;
         this.sizes = sizes;
         this.doughs = doughs;
         this.recipeLines = recipeLines;
+        this.imageStorage = imageStorage;
     }
 
     // --- Pizza ---
@@ -66,6 +70,19 @@ public class CatalogAdminService {
     public Pizza updatePizza(UUID pizzaId, String name, String description, BigDecimal basePrice, boolean active) {
         Pizza pizza = getPizza(pizzaId);
         pizza.update(name, description, basePrice, active);
+        return pizza;
+    }
+
+    public Pizza updatePizzaImage(UUID pizzaId, String contentType, byte[] bytes) {
+        if (bytes.length == 0) {
+            throw new InvalidPizzaImageException("Image file is empty");
+        }
+        if (!imageStorage.supports(contentType)) {
+            throw new InvalidPizzaImageException("Unsupported image type: " + contentType + " (use JPEG, PNG, or WebP)");
+        }
+        Pizza pizza = getPizza(pizzaId);
+        imageStorage.store(pizzaId, contentType, bytes);
+        pizza.updateImageUrl("/api/v1/catalog/pizzas/" + pizzaId + "/image");
         return pizza;
     }
 

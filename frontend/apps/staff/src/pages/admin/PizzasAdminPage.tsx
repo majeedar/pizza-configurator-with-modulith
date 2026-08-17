@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Box, Button, Chip, Stack, Switch, TextField, Typography } from "@mui/material";
+import { Alert, Avatar, Box, Button, Chip, Stack, Switch, TextField, Typography } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../state/AuthContext";
-import { ApiError } from "../../api/client";
+import { apiBaseUrl, ApiError } from "../../api/client";
 import * as catalogAdmin from "../../api/catalogAdmin";
 import type { PizzaAdmin, PizzaAdminRequest } from "../../api/adminTypes";
 import AdminDataTable, { type AdminColumn } from "../../components/admin/AdminDataTable";
@@ -22,6 +22,8 @@ export default function PizzasAdminPage() {
   const [form, setForm] = useState<PizzaAdminRequest>(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!token) return;
@@ -51,7 +53,23 @@ export default function PizzasAdminPage() {
     setEditing(pizza);
     setForm({ code: pizza.code, name: pizza.name, description: pizza.description, basePrice: pizza.basePrice, active: pizza.active });
     setFormError(null);
+    setImageError(null);
     setDialogOpen(true);
+  }
+
+  async function handleImageUpload(file: File) {
+    if (!token || !editing) return;
+    setImageUploading(true);
+    setImageError(null);
+    try {
+      const updated = await catalogAdmin.uploadPizzaImage(editing.pizzaId, file, token);
+      setEditing(updated);
+      await refresh();
+    } catch (err) {
+      setImageError(err instanceof ApiError ? err.message : "Could not upload image.");
+    } finally {
+      setImageUploading(false);
+    }
   }
 
   async function handleSubmit() {
@@ -74,6 +92,18 @@ export default function PizzasAdminPage() {
   }
 
   const columns: AdminColumn<PizzaAdmin>[] = [
+    {
+      key: "imageUrl",
+      label: "Photo",
+      render: (row) =>
+        row.imageUrl ? (
+          <Avatar variant="rounded" src={`${apiBaseUrl()}${row.imageUrl}`} alt={row.name} sx={{ width: 48, height: 48 }} />
+        ) : (
+          <Avatar variant="rounded" sx={{ width: 48, height: 48 }}>
+            {row.name.charAt(0)}
+          </Avatar>
+        ),
+    },
     { key: "code", label: "Code" },
     { key: "name", label: "Name" },
     { key: "basePrice", label: "Base price", align: "right", render: (row) => row.basePrice.toFixed(2) },
@@ -147,6 +177,41 @@ export default function PizzasAdminPage() {
           <Switch checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />
           <Typography>Active</Typography>
         </Stack>
+
+        {editing && (
+          <Stack spacing={1}>
+            <Typography variant="body2" color="text.secondary">
+              Photo
+            </Typography>
+            {editing.imageUrl && (
+              <Box
+                component="img"
+                src={`${apiBaseUrl()}${editing.imageUrl}`}
+                alt={editing.name}
+                sx={{ width: 160, height: 120, objectFit: "cover", borderRadius: 1 }}
+              />
+            )}
+            <Button component="label" variant="outlined" size="small" disabled={imageUploading} sx={{ alignSelf: "flex-start" }}>
+              {imageUploading ? "Uploading…" : editing.imageUrl ? "Replace photo" : "Upload photo"}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                hidden
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleImageUpload(file);
+                  e.target.value = "";
+                }}
+              />
+            </Button>
+            {imageError && <Alert severity="error">{imageError}</Alert>}
+          </Stack>
+        )}
+        {!editing && (
+          <Typography variant="body2" color="text.secondary">
+            Save the pizza first, then reopen it to upload a photo.
+          </Typography>
+        )}
       </AdminFormDialog>
     </Box>
   );

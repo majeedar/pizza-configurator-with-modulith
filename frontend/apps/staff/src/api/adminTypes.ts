@@ -11,6 +11,7 @@ export interface PizzaAdmin {
   description: string | null;
   basePrice: number;
   active: boolean;
+  imageUrl: string | null;
   version: number;
 }
 
